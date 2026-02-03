@@ -1,0 +1,10 @@
+{
+  "analysts": [
+    {"id": "ANALYST_004", "role": "Analyst", "persona": "Skill_Builder", "risk": 0.72, "gap": 0.71},
+    {"id": "ANALYST_002", "role": "AdvancedAnalyst", "persona": "Skill_Builder", "risk": 0.62, "gap": -0.99}
+  ],
+  "aops": [
+    {"id": "AOP_01", "name": "Information_Gathering", "difficulty": 2},
+    {"id": "AOP_02", "name": "Diagnosis_Triage", "difficulty": 3}
+  ]
+}
