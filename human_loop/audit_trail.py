@@ -1,8 +1,13 @@
 """Audit trail for human decisions: append-only log with timestamps."""
+import sys
+from pathlib import Path
+
+_root = Path(__file__).resolve().parent.parent
+if str(_root) not in sys.path:
+    sys.path.insert(0, str(_root))
 
 import json
 from datetime import datetime
-from pathlib import Path
 from typing import Any
 
 from core.schema import HumanDecision

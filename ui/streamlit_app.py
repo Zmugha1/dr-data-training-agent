@@ -2,13 +2,15 @@
 Human-in-the-Loop Decision Intelligence for Training Transfer Optimization.
 Main Streamlit interface: Dashboard, Decision Queue, AoP Ingestion, Intervention Planner, Analytics.
 """
-
 import sys
 from pathlib import Path
 
+# Ensure project root is on PYTHONPATH (Streamlit Cloud / headless)
 ROOT = Path(__file__).resolve().parent.parent
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+for _path in (ROOT, ROOT.parent):
+    _s = str(_path)
+    if _s not in sys.path:
+        sys.path.insert(0, _s)
 
 import yaml
 import streamlit as st
@@ -18,7 +20,8 @@ import plotly.graph_objects as go
 from datetime import datetime
 
 from core.schema import (
-    HumanDecision,
+    DecisionStatus,
+    InterventionCategory,
     InterventionPlan,
     JobTask,
 )
@@ -45,7 +48,7 @@ def load_config() -> dict:
 def get_decision_manager() -> DecisionManager:
     """Session-scoped DecisionManager."""
     if "decision_manager" not in st.session_state:
-        st.session_state.decision_manager = DecisionManager(pending_dir=PENDING_DIR)
+        st.session_state.decision_manager = DecisionManager(pending_dir=str(PENDING_DIR))
     return st.session_state.decision_manager
 
 
@@ -115,15 +118,17 @@ def tab_dashboard(config: dict) -> None:
     if pending:
         rows = []
         for d in pending[:20]:
-            risk = d.proposal_payload.get("risk_profile") or {}
+            payload = d.get("proposed_data") or {}
+            risk = payload.get("risk_profile") or {}
             incident = risk.get("incident_risk", 0)
             skill = risk.get("skill_gap", 0)
+            ts = d.get("timestamp_proposed", "")
             rows.append({
-                "Decision ID": d.decision_id[:8] + "...",
-                "Type": d.proposal_type,
+                "Decision ID": (d.get("decision_id") or "")[:8] + "...",
+                "Type": d.get("decision_type", ""),
                 "Incident risk": f"{incident:.2f}" if isinstance(incident, (int, float)) else "-",
                 "Skill gap": f"{skill:.2f}" if isinstance(skill, (int, float)) else "-",
-                "Created": d.created_at.strftime("%Y-%m-%d %H:%M") if d.created_at else "-",
+                "Created": str(ts)[:16] if ts else "-",
             })
         st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
     else:
@@ -144,37 +149,40 @@ def tab_decision_queue() -> None:
         return
 
     for d in pending:
-        with st.expander(f"**{d.proposal_type}** — {d.decision_id[:8]}... — {d.created_at.strftime('%Y-%m-%d %H:%M') if d.created_at else 'N/A'}", expanded=True):
-            st.json(d.proposal_payload)
-            rationale = st.text_area("Rationale (optional)", key=f"rationale_{d.decision_id}", placeholder="Reason for approve/reject/modify")
+        did = d.get("decision_id", "")
+        dtype = d.get("decision_type", "")
+        payload = d.get("proposed_data") or {}
+        ts = d.get("timestamp_proposed", "")
+        with st.expander(f"**{dtype}** — {did[:8]}... — {str(ts)[:16]}", expanded=True):
+            st.json(payload)
+            rationale = st.text_area("Rationale (optional)", key=f"rationale_{did}", placeholder="Reason for approve/reject/modify")
             col1, col2, col3 = st.columns(3)
             with col1:
-                if st.button("Approve", key=f"approve_{d.decision_id}"):
-                    dm.make_decision(d.decision_id, "approved", human_actor=expert_name, human_rationale=rationale)
-                    if d.proposal_type == "job_task":
+                if st.button("Approve", key=f"approve_{did}"):
+                    dm.make_decision(did, DecisionStatus.APPROVED, human_id=expert_name, rationale=rationale)
+                    if dtype == "job_task":
                         try:
-                            task = JobTask.model_validate({k: v for k, v in d.proposal_payload.items() if k != "_confidence"})
+                            task = JobTask.model_validate({k: v for k, v in payload.items() if k != "_confidence"})
                             sm.add_job_task(task)
                         except Exception:
                             pass
-                    elif d.proposal_type == "intervention_plan":
+                    elif dtype == "intervention_plan":
                         try:
-                            plan = InterventionPlan.model_validate(d.proposal_payload)
+                            plan = InterventionPlan.model_validate(payload)
                             sm.add_intervention_plan(plan)
                         except Exception:
                             pass
                     st.success("Approved.")
                     st.rerun()
             with col2:
-                if st.button("Reject", key=f"reject_{d.decision_id}"):
-                    dm.make_decision(d.decision_id, "rejected", human_actor=expert_name, human_rationale=rationale)
+                if st.button("Reject", key=f"reject_{did}"):
+                    dm.make_decision(did, DecisionStatus.REJECTED, human_id=expert_name, rationale=rationale)
                     st.info("Rejected.")
                     st.rerun()
             with col3:
-                if st.button("Modify", key=f"modify_{d.decision_id}"):
-                    modified = d.proposal_payload.copy()
-                    dm.make_decision(d.decision_id, "modified", human_actor=expert_name, human_rationale=rationale, modified_payload=modified)
-                    st.warning("Marked as modified. Update payload in audit if needed.")
+                if st.button("Modify", key=f"modify_{did}"):
+                    dm.make_decision(did, DecisionStatus.MODIFIED, human_id=expert_name, rationale=rationale, override_data=payload)
+                    st.warning("Marked as modified.")
                     st.rerun()
 
 
@@ -186,7 +194,7 @@ def tab_aop_ingestion() -> None:
         tasks = agent.parse_text(raw.strip())
         confidence = [agent.confidence_score(t) for t in tasks]
         for i, (t, c) in enumerate(zip(tasks, confidence)):
-            st.markdown(f"**Parsed {i+1}:** `{t.to_verb_task_product()}` — confidence: `{c:.2f}`")
+            st.markdown(f"**Parsed {i+1}:** `{t.statement}` — confidence: `{c:.2f}`")
         if st.button("Submit to Decision Queue (human validation)"):
             results = agent.ingest_and_submit(raw.strip(), submit_all=True)
             for _task, _c, did in results:
@@ -213,6 +221,7 @@ def tab_intervention_planner() -> None:
     if st.button("Generate Plan"):
         plan = planner.generate_plan(
             analyst_id=analyst_id,
+            aop_id="default",
             risk_profile=risk_profile,
             difficulty=difficulty,
         )
@@ -224,25 +233,27 @@ def tab_intervention_planner() -> None:
         col1, col2, col3 = st.columns(3)
         with col1:
             st.markdown("**OTJ 70%**")
-            for a in plan.otj_70_activities:
-                st.write(f"- {a}")
+            for item in plan.interventions.get(InterventionCategory.OTJ_70, []):
+                st.write(f"- {item.get('activity', item)}")
         with col2:
             st.markdown("**Social 20%**")
-            for a in plan.social_20_activities:
-                st.write(f"- {a}")
+            for item in plan.interventions.get(InterventionCategory.Social_20, []):
+                st.write(f"- {item.get('activity', item)}")
         with col3:
             st.markdown("**Formal 10%**")
-            for a in plan.formal_10_activities:
-                st.write(f"- {a}")
+            for item in plan.interventions.get(InterventionCategory.Formal_10, []):
+                st.write(f"- {item.get('activity', item)}")
         if st.button("Submit plan to Decision Queue"):
             dm = get_decision_manager()
-            decision = dm.propose_decision(
-                proposal_type="intervention_plan",
-                proposal_payload=plan.model_dump(mode="json"),
+            decision_id = dm.propose_decision(
+                agent_id=8,
+                decision_type="intervention_plan",
+                data=plan.model_dump(mode="json"),
+                auto_approve=False,
             )
             if "last_plan" in st.session_state:
                 del st.session_state["last_plan"]
-            st.success(f"Plan submitted for human approval. Decision ID: {decision.decision_id}")
+            st.success(f"Plan submitted for human approval. Decision ID: {decision_id}")
             st.rerun()
 
 
@@ -263,13 +274,14 @@ def tab_analytics() -> None:
         rows = []
         for p in plans:
             rp = p.risk_profile or {}
+            interventions = p.interventions or {}
             rows.append({
                 "Plan ID": p.plan_id[:8] + "...",
                 "Incident risk": rp.get("incident_risk", 0),
                 "Skill gap": rp.get("skill_gap", 0),
-                "OTJ count": len(p.otj_70_activities),
-                "Social count": len(p.social_20_activities),
-                "Formal count": len(p.formal_10_activities),
+                "OTJ count": len(interventions.get(InterventionCategory.OTJ_70, [])),
+                "Social count": len(interventions.get(InterventionCategory.Social_20, [])),
+                "Formal count": len(interventions.get(InterventionCategory.Formal_10, [])),
             })
         st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 

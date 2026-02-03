@@ -1,7 +1,11 @@
 """Application state manager for agents and UI."""
-
+import sys
 from pathlib import Path
 from typing import Any, Optional
+
+_root = Path(__file__).resolve().parent.parent
+if str(_root) not in sys.path:
+    sys.path.insert(0, str(_root))
 
 from core.schema import (
     HumanDecision,

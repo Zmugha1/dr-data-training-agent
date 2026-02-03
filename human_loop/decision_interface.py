@@ -1,8 +1,14 @@
 import json
+import sys
 import uuid
 from datetime import datetime
-from typing import Dict, Any, Optional, List
 from pathlib import Path
+from typing import Dict, Any, Optional, List
+
+_root = Path(__file__).resolve().parent.parent
+if str(_root) not in sys.path:
+    sys.path.insert(0, str(_root))
+
 from core.schema import HumanDecision, DecisionStatus
 
 class DecisionManager:

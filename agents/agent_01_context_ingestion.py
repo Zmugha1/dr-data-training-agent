@@ -1,50 +1,61 @@
 """Agent 01: Parse SME Design Documents into JobTask objects (Verb-Task-Product)."""
-
-import re
+import sys
+import uuid
 from pathlib import Path
 from typing import Optional
 
-from core.schema import (
-    DifficultyLevel,
-    JobTask,
-    SkillType,
-)
+_root = Path(__file__).resolve().parent.parent
+if str(_root) not in sys.path:
+    sys.path.insert(0, str(_root))
+
+import re
+
+from core.schema import DifficultyLevel, JobTask
 from human_loop.decision_interface import DecisionManager
 
 
-# Verb-Task-Product regex: verb (action), task (what), product (deliverable)
+# Verb-Task-Product regex
 VTP_PATTERN = re.compile(
     r"(?P<verb>\w+)\s+(?P<task>[^→\-]+?)(?:\s*[→\-]\s*|\s+to produce\s+)(?P<product>.+?)",
     re.IGNORECASE | re.DOTALL,
 )
-# Fallback: "Verb task product" on one line
 VTP_SIMPLE = re.compile(
     r"^(?P<verb>\w+)\s+(?P<task>.+?)\s+→\s+(?P<product>.+)$",
     re.IGNORECASE | re.MULTILINE,
 )
 
 
+def _make_job_task(verb: str, task: str, product: str, aop_id: str = "default") -> JobTask:
+    statement = f"{verb} {task} → {product}"
+    return JobTask(
+        task_id=str(uuid.uuid4()),
+        aop_id=aop_id,
+        verb=verb,
+        task=task,
+        product=product,
+        statement=statement,
+        critical_incident=False,
+        difficulty=DifficultyLevel.EASY,
+    )
+
+
 class ContextIngestionAgent:
     """
     Parse SME Design Documents into JobTask objects.
-    Extract Verb-Task-Product format using regex (and optional LLM).
-    Confidence scoring. Submit to DecisionManager for human validation.
+    Extract Verb-Task-Product format. Confidence scoring. Submit to DecisionManager.
     """
 
     def __init__(self, decision_manager: DecisionManager) -> None:
         self._dm = decision_manager
 
     def parse_text(self, text: str, source_doc: Optional[str] = None) -> list[JobTask]:
-        """
-        Parse raw text into candidate JobTask objects using regex.
-        Returns list of JobTask; does not submit to human queue.
-        """
+        """Parse raw text into candidate JobTask objects. Returns list of JobTask."""
         tasks: list[JobTask] = []
         text = text.strip()
         if not text:
             return tasks
+        aop_id = "default"
 
-        # Try structured VTP lines first
         for line in text.splitlines():
             line = line.strip()
             if not line or line.startswith("#"):
@@ -52,50 +63,34 @@ class ContextIngestionAgent:
             m = VTP_SIMPLE.match(line)
             if m:
                 tasks.append(
-                    JobTask(
-                        verb=m.group("verb").strip(),
-                        task=m.group("task").strip(),
-                        product=m.group("product").strip(),
-                        critical_incident=False,
-                        difficulty=DifficultyLevel.LEVEL_1,
-                        source_doc=source_doc,
+                    _make_job_task(
+                        m.group("verb").strip(),
+                        m.group("task").strip(),
+                        m.group("product").strip(),
+                        aop_id=aop_id,
                     )
                 )
                 continue
-            # Block match
             m = VTP_PATTERN.match(line)
             if m:
                 tasks.append(
-                    JobTask(
-                        verb=m.group("verb").strip(),
-                        task=m.group("task").strip(),
-                        product=m.group("product").strip(),
-                        critical_incident=False,
-                        difficulty=DifficultyLevel.LEVEL_1,
-                        source_doc=source_doc,
+                    _make_job_task(
+                        m.group("verb").strip(),
+                        m.group("task").strip(),
+                        m.group("product").strip(),
+                        aop_id=aop_id,
                     )
                 )
 
-        # If no structured match, try to infer one task from first line
         if not tasks and text:
             first_line = text.splitlines()[0].strip()[:200]
             tasks.append(
-                JobTask(
-                    verb="Perform",
-                    task=first_line,
-                    product="(parsed deliverable)",
-                    critical_incident=False,
-                    difficulty=DifficultyLevel.LEVEL_1,
-                    source_doc=source_doc,
-                )
+                _make_job_task("Perform", first_line, "(parsed deliverable)", aop_id=aop_id)
             )
         return tasks
 
     def confidence_score(self, task: JobTask) -> float:
-        """
-        Return confidence in [0, 1] for parsed task.
-        Higher if verb/task/product are non-generic and present.
-        """
+        """Return confidence in [0, 1] for parsed task."""
         score = 0.0
         if task.verb and len(task.verb) > 1:
             score += 0.25
@@ -103,7 +98,7 @@ class ContextIngestionAgent:
             score += 0.35
         if task.product and "(parsed deliverable)" not in task.product:
             score += 0.35
-        if task.cues or task.strategies:
+        if task.cues_strategies:
             score += 0.05
         return min(1.0, score)
 
@@ -113,11 +108,7 @@ class ContextIngestionAgent:
         source_doc: Optional[str] = None,
         submit_all: bool = True,
     ) -> list[tuple[JobTask, float, Optional[str]]]:
-        """
-        Parse text into JobTasks, score confidence, and submit each to DecisionManager
-        for human validation. Never auto-approves.
-        Returns list of (JobTask, confidence, decision_id).
-        """
+        """Parse, score, and submit each JobTask to DecisionManager. Returns (JobTask, confidence, decision_id)."""
         tasks = self.parse_text(text, source_doc=source_doc)
         results: list[tuple[JobTask, float, Optional[str]]] = []
         for task in tasks:
@@ -127,11 +118,13 @@ class ContextIngestionAgent:
                 continue
             payload = task.model_dump(mode="json")
             payload["_confidence"] = confidence
-            decision = self._dm.propose_decision(
-                proposal_type="job_task",
-                proposal_payload=payload,
+            decision_id = self._dm.propose_decision(
+                agent_id=1,
+                decision_type="job_task",
+                data=payload,
+                auto_approve=False,
             )
-            results.append((task, confidence, decision.decision_id))
+            results.append((task, confidence, decision_id))
         return results
 
     def ingest_file(
