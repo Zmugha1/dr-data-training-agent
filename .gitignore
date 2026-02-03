@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.env
+data/pending_decisions/*.json
+data/decided/*.json
+*.egg-info/
+.ipynb_checkpoints/

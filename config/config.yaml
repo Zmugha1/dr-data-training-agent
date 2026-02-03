@@ -1,0 +1,27 @@
+# Human-in-the-Loop Decision Intelligence for Training Transfer Optimization
+# System settings for governance and agent thresholds
+
+governance:
+  governance_mode: human_in_the_loop
+  decision_authority:
+    - Dr. Zubia Mughal
+  auto_approve_interventions: false
+
+agents:
+  agent_01_context_ingestion:
+    min_confidence_to_submit: 0.3
+    submit_all_by_default: true
+  agent_08_intervention_planner:
+    skill_gap_threshold: 0.5
+    incident_risk_threshold: 0.6
+    difficulty_formal_threshold: 3
+
+paths:
+  data_root: data
+  pending_decisions: data/pending_decisions
+  kg_export: data/kg
+  input: data/input
+
+ui:
+  expert_name: Dr. Zubia Mughal
+  expert_role: Human Expert (Governance)
