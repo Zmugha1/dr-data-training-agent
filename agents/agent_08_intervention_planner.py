@@ -85,8 +85,8 @@ class InterventionPlannerAgent:
 
         interventions = {
             InterventionCategory.OTJ_70: otj_70,
-            InterventionCategory.Social_20: social_20,
-            InterventionCategory.Formal_10: formal_10,
+            InterventionCategory.SOCIAL_20: social_20,
+            InterventionCategory.FORMAL_10: formal_10,
         }
 
         plan = InterventionPlan(

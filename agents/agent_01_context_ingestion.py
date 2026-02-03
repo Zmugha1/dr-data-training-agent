@@ -48,13 +48,17 @@ class ContextIngestionAgent:
     def __init__(self, decision_manager: DecisionManager) -> None:
         self._dm = decision_manager
 
-    def parse_text(self, text: str, source_doc: Optional[str] = None) -> list[JobTask]:
+    def parse_text(
+        self,
+        text: str,
+        source_doc: Optional[str] = None,
+        aop_id: str = "default",
+    ) -> list[JobTask]:
         """Parse raw text into candidate JobTask objects. Returns list of JobTask."""
         tasks: list[JobTask] = []
         text = text.strip()
         if not text:
             return tasks
-        aop_id = "default"
 
         for line in text.splitlines():
             line = line.strip()
@@ -106,10 +110,11 @@ class ContextIngestionAgent:
         self,
         text: str,
         source_doc: Optional[str] = None,
+        aop_id: str = "default",
         submit_all: bool = True,
     ) -> list[tuple[JobTask, float, Optional[str]]]:
         """Parse, score, and submit each JobTask to DecisionManager. Returns (JobTask, confidence, decision_id)."""
-        tasks = self.parse_text(text, source_doc=source_doc)
+        tasks = self.parse_text(text, source_doc=source_doc, aop_id=aop_id)
         results: list[tuple[JobTask, float, Optional[str]]] = []
         for task in tasks:
             confidence = self.confidence_score(task)
