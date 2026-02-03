@@ -25,6 +25,17 @@ from core.schema import (
     InterventionPlan,
     JobTask,
 )
+
+
+def _get_interventions(interventions: dict, category_value: str) -> list:
+    """Get intervention list by category; works with enum or string keys (e.g. after JSON)."""
+    if not interventions:
+        return []
+    try:
+        cat = InterventionCategory(category_value)
+        return interventions.get(cat, interventions.get(category_value, []))
+    except (ValueError, TypeError):
+        return interventions.get(category_value, [])
 from core.state_manager import StateManager
 from human_loop.decision_interface import DecisionManager
 from agents.agent_01_context_ingestion import ContextIngestionAgent
@@ -317,15 +328,15 @@ def tab_intervention_planner() -> None:
         col1, col2, col3 = st.columns(3)
         with col1:
             st.markdown("**OTJ 70%**")
-            for item in plan.interventions.get(InterventionCategory.OTJ_70, []):
+            for item in _get_interventions(plan.interventions, "OTJ_70"):
                 st.write(f"- {item.get('activity', item)}")
         with col2:
             st.markdown("**Social 20%**")
-            for item in plan.interventions.get(InterventionCategory.SOCIAL_20, []):
+            for item in _get_interventions(plan.interventions, "Social_20"):
                 st.write(f"- {item.get('activity', item)}")
         with col3:
             st.markdown("**Formal 10%**")
-            for item in plan.interventions.get(InterventionCategory.FORMAL_10, []):
+            for item in _get_interventions(plan.interventions, "Formal_10"):
                 st.write(f"- {item.get('activity', item)}")
         if st.button("Submit plan to Decision Queue"):
             dm = get_decision_manager()
@@ -459,9 +470,9 @@ def tab_analytics() -> None:
                 "Plan ID": p.plan_id[:8] + "...",
                 "Incident risk": rp.get("incident_risk", 0),
                 "Skill gap": rp.get("skill_gap", 0),
-                "OTJ count": len(interventions.get(InterventionCategory.OTJ_70, [])),
-                "Social count": len(interventions.get(InterventionCategory.SOCIAL_20, [])),
-                "Formal count": len(interventions.get(InterventionCategory.FORMAL_10, [])),
+                "OTJ count": len(_get_interventions(interventions, "OTJ_70")),
+                "Social count": len(_get_interventions(interventions, "Social_20")),
+                "Formal count": len(_get_interventions(interventions, "Formal_10")),
             })
         st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
