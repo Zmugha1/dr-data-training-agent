@@ -29,6 +29,7 @@ from core.state_manager import StateManager
 from human_loop.decision_interface import DecisionManager
 from agents.agent_01_context_ingestion import ContextIngestionAgent
 from agents.agent_08_intervention_planner import InterventionPlannerAgent
+from pipeline.ml_pipeline import run_ml_pipeline
 
 
 # --- Config ---
@@ -340,6 +341,102 @@ def tab_intervention_planner() -> None:
             st.rerun()
 
 
+def tab_ml_pipeline() -> None:
+    """ML Pipeline: synthetic data → feature eng → models → clustering → 70:20:10 plans."""
+    st.subheader("ML Pipeline: Feature Eng → Logistic Reg → Clustering → 70:20:10")
+
+    n_analysts = st.number_input("Number of analysts (synthetic)", min_value=20, max_value=120, value=60, step=10, key="n_analysts_pipeline")
+
+    if st.button("Run ML Pipeline", key="run_ml_pipeline"):
+        with st.spinner("Running pipeline: synthetic data → feature eng → models → clustering → plans..."):
+            try:
+                out = run_ml_pipeline(n_analysts=n_analysts)
+                st.session_state["ml_pipeline_output"] = out
+            except Exception as e:
+                st.error(f"Pipeline error: {e}")
+                return
+        st.success("Pipeline complete.")
+        st.rerun()
+
+    if "ml_pipeline_output" not in st.session_state:
+        st.info("Click **Run ML Pipeline** to generate synthetic data, train models, cluster personas, and build 70:20:10 intervention plans.")
+        return
+
+    out = st.session_state["ml_pipeline_output"]
+    df = out["df"]
+    analyst_features = out["analyst_features"]
+    intervention_df = out["intervention_df"]
+    intervention_df_full = out["intervention_df_full"]
+    model_transfer = out["model_transfer"]
+    model_incident = out["model_incident"]
+    X = out["X"]
+
+    # Summary metrics
+    st.markdown("### Summary")
+    col1, col2, col3, col4, col5 = st.columns(5)
+    col1.metric("Analysts", out["n_analysts"])
+    col2.metric("AoPs", out["n_aops"])
+    col3.metric("Transfer success rate", f"{out['transfer_rate']:.1%}")
+    col4.metric("Incident risk rate", f"{out['incident_rate']:.1%}")
+    col5.metric("High-risk plans", len(out["intervention_plans"]))
+
+    st.markdown("### Model performance")
+    c1, c2 = st.columns(2)
+    c1.metric("Transfer success model (AUC)", f"{out['auc_transfer']:.3f}")
+    c2.metric("Incident risk model (AUC)", f"{out['auc_incident']:.3f}")
+
+    # Top drivers
+    st.markdown("### Top drivers (feature importance)")
+    coef_transfer = pd.DataFrame({"Feature": X.columns, "Coef": model_transfer.coef_[0]}).assign(AbsCoef=lambda x: x["Coef"].abs())
+    coef_incident = pd.DataFrame({"Feature": X.columns, "Coef": model_incident.coef_[0]}).assign(AbsCoef=lambda x: x["Coef"].abs())
+    coef_transfer = coef_transfer.nlargest(8, "AbsCoef")
+    coef_incident = coef_incident.nlargest(8, "AbsCoef")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("**Transfer success**")
+        fig_t = go.Figure(go.Bar(x=coef_transfer["Coef"], y=coef_transfer["Feature"], orientation="h"))
+        fig_t.update_layout(height=300, margin=dict(l=120), xaxis_title="Coefficient")
+        st.plotly_chart(fig_t, use_container_width=True)
+    with col2:
+        st.markdown("**Incident risk**")
+        fig_i = go.Figure(go.Bar(x=coef_incident["Coef"], y=coef_incident["Feature"], orientation="h"))
+        fig_i.update_layout(height=300, margin=dict(l=120), xaxis_title="Coefficient")
+        st.plotly_chart(fig_i, use_container_width=True)
+
+    # Persona distribution
+    st.markdown("### Persona distribution")
+    persona_counts = out["persona_counts"]
+    persona_df = pd.DataFrame({"Persona": persona_counts.index.astype(str), "Count": persona_counts.values})
+    st.dataframe(persona_df, use_container_width=True, hide_index=True)
+
+    # Intervention plans (high-risk)
+    st.markdown("### Sample intervention plans (high-risk cases)")
+    st.dataframe(intervention_df, use_container_width=True, hide_index=True)
+
+    # Charts: risk by persona, 70:20:10 pie, skill gap vs transfer
+    st.markdown("### Visualizations")
+    col1, col2 = st.columns(2)
+    with col1:
+        fig_risk = px.box(df, x="PersonaLabel", y="IncidentRisk_Prob", title="Incident risk by persona")
+        fig_risk.update_layout(xaxis_tickangle=-45, height=350)
+        st.plotly_chart(fig_risk, use_container_width=True)
+    with col2:
+        if not intervention_df_full.empty:
+            cat_counts = intervention_df_full["Category"].value_counts()
+            fig_pie = go.Figure(go.Pie(labels=cat_counts.index, values=cat_counts.values, hole=0.4, marker_colors=["#2E86AB", "#A23B72", "#F18F01"]))
+            fig_pie.update_layout(title="Generated intervention mix (70:20:10)", height=350)
+            st.plotly_chart(fig_pie, use_container_width=True)
+
+    fig_scatter = px.scatter(df.sample(min(500, len(df))), x="SkillGap", y="TransferSuccess_Prob", color="RoleTier", opacity=0.6, title="Skill gap vs predicted transfer success")
+    fig_scatter.add_hline(y=0.5, line_dash="dash", line_color="red", opacity=0.5)
+    fig_scatter.update_layout(height=400)
+    st.plotly_chart(fig_scatter, use_container_width=True)
+
+    # Sample data table
+    with st.expander("Sample Analyst × AoP data (first 20 rows)"):
+        st.dataframe(df.head(20), use_container_width=True, hide_index=True)
+
+
 def tab_analytics() -> None:
     sm = get_state_manager()
     dm = get_decision_manager()
@@ -378,12 +475,13 @@ def main() -> None:
     config = load_config()
     render_sidebar(config)
 
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "Dashboard",
         "⚖️ Decision Queue",
         "📥 AoP Ingestion",
         "🎯 Intervention Planner",
         "📈 Analytics",
+        "🔬 ML Pipeline",
     ])
     with tab1:
         tab_dashboard(config)
@@ -395,6 +493,8 @@ def main() -> None:
         tab_intervention_planner()
     with tab5:
         tab_analytics()
+    with tab6:
+        tab_ml_pipeline()
 
 
 if __name__ == "__main__":
