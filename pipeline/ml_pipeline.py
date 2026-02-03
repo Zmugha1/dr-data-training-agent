@@ -169,62 +169,12 @@ def run_ml_pipeline(n_analysts: int = 60) -> dict:
     analyst_features["PersonaLabel"] = analyst_features["PersonaCluster"].map(cluster_labels)
     df = df.merge(analyst_features[["AnalystID", "PersonaCluster", "PersonaLabel"]], on="AnalystID")
 
-    # Intervention plan generator
-    def generate_plan(analyst_id: str, aop_id: str) -> dict:
-        row = df[(df["AnalystID"] == analyst_id) & (df["AoPID"] == aop_id)].iloc[0]
-        plan = {
-            "AnalystID": analyst_id,
-            "AoPID": aop_id,
-            "GeneratedTimestamp": datetime.now().isoformat(),
-            "RiskProfile": {
-                "IncidentRisk_Prob": round(float(row["IncidentRisk_Prob"]), 3),
-                "TransferSuccess_Prob": round(float(row["TransferSuccess_Prob"]), 3),
-                "Persona": row["PersonaLabel"],
-                "SkillGap": row["SkillGap"],
-            },
-            "TargetedInterventions": {"OTJ_70": [], "Social_20": [], "Formal_10": []},
-            "EvidenceArtifacts": [],
-            "SuccessCriteria": {},
-        }
-        if row["SkillGap"] > 0.5:
-            plan["TargetedInterventions"]["OTJ_70"].append({
-                "Type": "Structured_Practice",
-                "Task": f"Practice {row['AoPName']} with supervisor checklist",
-                "Duration": "2 weeks",
-            })
-            plan["EvidenceArtifacts"].append("Observation_Checklist_V2")
-        if row["CuesAvailable"] < 0.5:
-            plan["TargetedInterventions"]["OTJ_70"].append({
-                "Type": "Performance_Support_Tool",
-                "Task": "Deploy job aid with cues/strategies",
-            })
-            plan["EvidenceArtifacts"].append("PST_Cues_Strategies")
-        if row["CriticalIncidentFlag"] == 1 or row["IncidentRisk_Prob"] > 0.6:
-            plan["TargetedInterventions"]["Social_20"].append({
-                "Type": "Peer_Coaching",
-                "Topic": f"Critical incident review: {row['AoPName']}",
-            })
-            plan["EvidenceArtifacts"].append("Critical_Incident_Analysis_Table")
-        if row["SupervisorSupport"] < 3.0:
-            plan["TargetedInterventions"]["Social_20"].append({
-                "Type": "Manager_Check_in",
-                "Frequency": "Weekly",
-            })
-        if row["TaskDifficulty"] >= 3:
-            plan["TargetedInterventions"]["Formal_10"].append({
-                "Type": "Scenario_Based_eLearning",
-                "Topic": f"{row['AoPName']} - Difficult task mastery",
-                "Duration": "30 mins",
-            })
-            plan["EvidenceArtifacts"].append("eLearning_Scenario_Module")
-        plan["SuccessCriteria"] = {
-            "Incident_Reduction": "50% in 30 days" if row["IncidentRisk_Prob"] > 0.7 else "25% in 30 days",
-            "Measurement_Window": "30 days",
-        }
-        return plan
-
+    # Intervention plan generator (uses shared builder so UI can build plan for any selected row)
     high_risk_cases = df[df["IncidentRisk_Prob"] > 0.6][["AnalystID", "AoPID"]].drop_duplicates().head(10)
-    intervention_plans = [generate_plan(r["AnalystID"], r["AoPID"]) for _, r in high_risk_cases.iterrows()]
+    intervention_plans = []
+    for _, r in high_risk_cases.iterrows():
+        row = df[(df["AnalystID"] == r["AnalystID"]) & (df["AoPID"] == r["AoPID"])].iloc[0]
+        intervention_plans.append(build_intervention_plan_from_row(row, r["AnalystID"], r["AoPID"]))
 
     intervention_rows = []
     for plan in intervention_plans:
