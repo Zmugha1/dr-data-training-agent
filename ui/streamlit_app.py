@@ -489,6 +489,40 @@ The plan is **not** applied automatically; you **submit it to the Decision Queue
 def tab_ml_pipeline() -> None:
     """Model Lab: synthetic data → feature eng → models → clustering → 70:20:10 plans."""
     st.markdown("# Model Lab — Train & Validate")
+
+    with st.expander("📖 The Story — Why This Exists & What the System Does", expanded=True):
+        st.markdown("""
+### Context: Why This Exists
+
+In many organizations, **training is designed and delivered without a clear line of sight to real job tasks**. People sit through courses, but back on the job the "transfer climate" is weak: support is misaligned, difficult tasks lack performance support, and roughly **one in three** training efforts fail to transfer into better performance. That gap wastes L&D hours and leaves risk on the table—especially in high-stakes roles like **service-desk analysts**, where complex technical workflows meet demanding customer interactions. Critical incidents happen when people lack the right cues, confidence, or support at the moment of need—not only when they lack "knowledge" from a class.
+
+This project starts from that reality: **training transfer is a system problem**, not just a content problem. It asks: *Can we use data and models to say who needs what kind of support (on-the-job, social, or formal), and then put a human expert in charge of every decision so nothing goes live without approval?*
+
+### The Problem in Plain Language
+
+- **Generic training** doesn't target who is actually at risk or where the real skill gaps are.
+- **Transfer fails** when motivation and confidence (e.g. "I can do this") don't line up with support (e.g. peers and managers aligned).
+- **Incident risk** is often tied to difficult tasks, missing cues, and low self-efficacy—not just "did they attend training?"
+- **One-size plans** waste resources on people who don't need them and under-support those who do.
+
+So we need a system that (1) **connects** job tasks, skills, and risk in one place, (2) **predicts** who is likely to transfer (or not) and who is at higher incident risk, (3) **segments** people into actionable personas, and (4) **proposes** targeted 70:20:10 plans—while (5) **never** auto-applying anything until a human expert approves it.
+
+### What the System Does (Story Form)
+
+1. **Data and context** — The system works with **analysts** and **Areas of Practice (AoPs)**—the real tasks and workflows (e.g. information gathering, diagnosis & triage, routing). It uses factors from learning-transfer research (e.g. motivation to transfer, self-efficacy, peer and supervisor support) and turns them into features. **Skill gap** is the gap between what a task requires and what someone can do today—a core driver of both transfer failure and incident risk.
+
+2. **Models that explain, not just predict** — Two models sit at the heart: one for **transfer success** (will learning stick?) and one for **incident risk** (how likely is a critical incident?). They are kept interpretable (e.g. logistic regression) so we can see *why*—e.g. "motivation × efficacy" and "skill gap" drive transfer; difficulty and cues drive risk. The system uses these predictions to **prioritize** who gets attention and to **govern** how much to rely on each signal.
+
+3. **Personas that map to how people learn** — People are grouped into three broad personas: **Needs Motivation Support** (capable but low confidence; need peer coaching, manager check-ins, structured practice), **Skill Builder** (motivated but hitting complexity ceilings; need performance support, scenario-based learning, critical-incident review), and **High Performer** (low gap, high efficacy; minimal intervention, can mentor in the "Social 20%"). That split drives **who gets which mix** of 70% on-the-job, 20% social, and 10% formal.
+
+4. **Interventions with evidence and KPIs** — For each at-risk analyst–task pair, the system suggests a **targeted 70:20:10 plan**: OTJ activities (e.g. checklists, performance support tools), social activities (e.g. critical-incident review, peer coaching), and formal activities (e.g. scenario-based eLearning for difficult tasks). Each plan is tied to **evidence artifacts** and **success criteria** (e.g. "50% incident reduction in 30 days" for highest risk).
+
+5. **Human in the loop** — No job task and no intervention plan is adopted by the system alone. Every proposal goes into a **Decision Queue** where a human expert (e.g. L&D or operations) **approves, rejects, or modifies** it and can add a rationale. That creates an audit trail and keeps governance first.
+
+**Summary in one line:** This project turns "who needs what training and why" into a clear, auditable, human-approved process—so training transfer and incident risk are addressed in a targeted, evidence-based way instead of by one-size-fits-all programs.
+        """)
+    st.divider()
+
     st.markdown("""
 **What you are seeing**  
 This is the **ML pipeline** screen. It runs an end-to-end pipeline on **synthetic** data (no real survey data): it generates Analyst × AoP records, builds features, trains two logistic models (Transfer Success and Incident Risk), clusters analysts into personas, and produces sample 70:20:10 intervention plans for high-risk cases.
