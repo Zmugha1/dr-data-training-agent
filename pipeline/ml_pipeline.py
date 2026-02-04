@@ -52,6 +52,64 @@ def generate_ltsi_scores(tier: str) -> dict:
     return scores
 
 
+def build_intervention_plan_from_row(row: pd.Series, analyst_id: str, aop_id: str) -> dict:
+    """
+    Build a single targeted intervention plan from one Analyst x AoP row (e.g. from pipeline df).
+    Used by run_ml_pipeline and by the UI when user selects analyst + AoP.
+    """
+    plan = {
+        "AnalystID": analyst_id,
+        "AoPID": aop_id,
+        "GeneratedTimestamp": datetime.now().isoformat(),
+        "RiskProfile": {
+            "IncidentRisk_Prob": round(float(row["IncidentRisk_Prob"]), 3),
+            "TransferSuccess_Prob": round(float(row["TransferSuccess_Prob"]), 3),
+            "Persona": row["PersonaLabel"],
+            "SkillGap": float(row["SkillGap"]),
+        },
+        "TargetedInterventions": {"OTJ_70": [], "Social_20": [], "Formal_10": []},
+        "EvidenceArtifacts": [],
+        "SuccessCriteria": {},
+    }
+    aop_name = row["AoPName"]
+    if row["SkillGap"] > 0.5:
+        plan["TargetedInterventions"]["OTJ_70"].append({
+            "Type": "Structured_Practice",
+            "Task": f"Practice {aop_name} with supervisor checklist",
+            "Duration": "2 weeks",
+        })
+        plan["EvidenceArtifacts"].append("Observation_Checklist_V2")
+    if row["CuesAvailable"] < 0.5:
+        plan["TargetedInterventions"]["OTJ_70"].append({
+            "Type": "Performance_Support_Tool",
+            "Task": "Deploy job aid with cues/strategies",
+        })
+        plan["EvidenceArtifacts"].append("PST_Cues_Strategies")
+    if row["CriticalIncidentFlag"] == 1 or row["IncidentRisk_Prob"] > 0.6:
+        plan["TargetedInterventions"]["Social_20"].append({
+            "Type": "Peer_Coaching",
+            "Topic": f"Critical incident review: {aop_name}",
+        })
+        plan["EvidenceArtifacts"].append("Critical_Incident_Analysis_Table")
+    if row["SupervisorSupport"] < 3.0:
+        plan["TargetedInterventions"]["Social_20"].append({
+            "Type": "Manager_Check_in",
+            "Frequency": "Weekly",
+        })
+    if row["TaskDifficulty"] >= 3:
+        plan["TargetedInterventions"]["Formal_10"].append({
+            "Type": "Scenario_Based_eLearning",
+            "Topic": f"{aop_name} - Difficult task mastery",
+            "Duration": "30 mins",
+        })
+        plan["EvidenceArtifacts"].append("eLearning_Scenario_Module")
+    plan["SuccessCriteria"] = {
+        "Incident_Reduction": "50% in 30 days" if row["IncidentRisk_Prob"] > 0.7 else "25% in 30 days",
+        "Measurement_Window": "30 days",
+    }
+    return plan
+
+
 def run_ml_pipeline(n_analysts: int = 60) -> dict:
     """
     Run full ML pipeline: synthetic data → feature eng → models → clustering → intervention plans.
