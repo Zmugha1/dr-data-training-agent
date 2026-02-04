@@ -3,6 +3,7 @@ Human-in-the-Loop Decision Intelligence for Training Transfer Optimization.
 Main Streamlit interface: Dashboard, Decision Queue, AoP Ingestion, Intervention Planner, Analytics.
 """
 import sys
+import importlib.util
 from pathlib import Path
 
 # Ensure project root is on PYTHONPATH (Streamlit Cloud / headless)
@@ -29,7 +30,21 @@ from core.state_manager import StateManager
 from human_loop.decision_interface import DecisionManager
 from agents.agent_01_context_ingestion import ContextIngestionAgent
 from agents.agent_08_intervention_planner import InterventionPlannerAgent
-from pipeline.ml_pipeline import run_ml_pipeline, build_intervention_plan_from_row
+
+# Pipeline import: try package first, then load module from file (for Streamlit Cloud)
+try:
+    from pipeline.ml_pipeline import run_ml_pipeline, build_intervention_plan_from_row
+except ImportError:
+    _ml_path = ROOT / "pipeline" / "ml_pipeline.py"
+    if _ml_path.exists():
+        _spec = importlib.util.spec_from_file_location("ml_pipeline", _ml_path)
+        _ml_module = importlib.util.module_from_spec(_spec)
+        sys.modules["ml_pipeline"] = _ml_module
+        _spec.loader.exec_module(_ml_module)
+        run_ml_pipeline = _ml_module.run_ml_pipeline
+        build_intervention_plan_from_row = _ml_module.build_intervention_plan_from_row
+    else:
+        raise
 
 
 def _get_interventions(interventions: dict, category_value: str) -> list:
