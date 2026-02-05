@@ -24,10 +24,10 @@ This case study informs the instructional design practice by adopting an agile a
 - Chapter I: Introduction (Problem, Conceptual Framework, Theoretical Foundation, Purpose, Research Questions, Significance, Limitations, Definitions)
 - Chapter II: Literature Review (Theoretical Framework, Intellectual Capital, Training Transfer, 70:20:10 Model, Agile, CTA, Skill Proficiency, Evaluation)
 - Chapter III: Method and Procedures (Methodology, Participants, Bounded Case, Instrumentation, Data Collection, Analysis, Validity, Limitations)
-- Chapter IV: Presentation of Findings (RQ1–RQ3, Tables)
+- Chapter IV: Presentation of Findings (RQ1-RQ3, Tables)
 - Chapter V: Discussion, Conclusion, and Recommendations
 - References
-- Appendices I–X
+- Appendices I-X
 
 ---
 
@@ -62,17 +62,17 @@ This case study informs the instructional design practice by adopting an agile a
 
 - **RQ1:** Training transfer gap attributed to inadequate structured training, inefficient skills management, lack of performance measurement tools, limited career development, and bootcamp-style overload (e.g., 200+ slides).
 - **RQ2:** Transfer improved by work environment support, LTSI factors, supervisor/trainer involvement, pre/during/post training activities, Dreyfus-aligned proficiency, and investment in structure/support/accountability.
-- **RQ3:** Effective L&D–SME collaboration achieved via Design Document (Job Task Table, Skills List, Skill Proficiency Definitions, Observation Checklists, 70:20:10 Curriculum Map); quality collaboration, open communication, and shared goals were critical.
+- **RQ3:** Effective L&D-SME collaboration achieved via Design Document (Job Task Table, Skills List, Skill Proficiency Definitions, Observation Checklists, 70:20:10 Curriculum Map); quality collaboration, open communication, and shared goals were critical.
 
 ---
 
 ## Design Document Template (Appendix III) Sections
 
-1. **Job Task Table** – Verb–Task–Product statements, KPIs, critical incidents, difficulty levels, cues/strategies.
-2. **Skills List** – Domain knowledge, technical skills, soft skills.
-3. **Skill Proficiency Level Definitions** – Beginner, Advanced, Practitioner, Expert per task.
-4. **Observation Checklists** – For assessing analyst performance per AoP.
-5. **70:20:10 Curriculum Map** – eLearning (10%), ILT/social (20%), OTJ (70%) per job task and challenges.
+1. **Job Task Table** - Verb-Task-Product statements, KPIs, critical incidents, difficulty levels, cues/strategies.
+2. **Skills List** - Domain knowledge, technical skills, soft skills.
+3. **Skill Proficiency Level Definitions** - Beginner, Advanced, Practitioner, Expert per task.
+4. **Observation Checklists** - For assessing analyst performance per AoP.
+5. **70:20:10 Curriculum Map** - eLearning (10%), ILT/social (20%), OTJ (70%) per job task and challenges.
 
 ---
 
@@ -82,7 +82,7 @@ This case study informs the instructional design practice by adopting an agile a
 - **Appendix II:** Learner Analysis Survey (LTSI factors, Likert scale, open-ended workflow/skill questions).
 - **Appendix III:** Design Document Template with sample data; Skill Proficiency Levels; Observation Checklist; 70:20:10 Curriculum Map.
 - **Appendix IV:** SME and L&D Collaboration Experience Evaluation Questionnaire.
-- **Appendix V–X:** Skill proficiency definitions, checklist example, curriculum map example, Agile plan, CTA types.
+- **Appendix V-X:** Skill proficiency definitions, checklist example, curriculum map example, Agile plan, CTA types.
 
 ---
 

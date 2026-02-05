@@ -37,7 +37,7 @@ class JobTask(BaseModel):
     verb: str
     task: str
     product: str
-    statement: str = Field(..., description="Verb – Task – Product")
+    statement: str = Field(..., description="Verb - Task - Product")
     critical_incident: bool = False
     difficulty: DifficultyLevel
     difficulty_reason: Optional[str] = None

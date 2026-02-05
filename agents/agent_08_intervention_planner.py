@@ -56,7 +56,7 @@ class InterventionPlannerAgent:
                 {"activity": "Shadowing with debrief"},
                 {"activity": "Gradual handoff with feedback loops"},
             ]
-            evidence_strs.append("OTJ checklist – on-the-job 70% for skill gap")
+            evidence_strs.append("OTJ checklist - on-the-job 70% for skill gap")
 
         # If incident_risk > 0.6 → Social_20 peer coaching
         if incident_risk > 0.6:
@@ -65,7 +65,7 @@ class InterventionPlannerAgent:
                 {"activity": "Community of practice discussions"},
                 {"activity": "Mentor check-ins"},
             ]
-            evidence_strs.append("Peer coaching plan – Social 20% for incident risk")
+            evidence_strs.append("Peer coaching plan - Social 20% for incident risk")
 
         # If difficulty >= 3 → Formal_10 eLearning
         if diff >= 3:
@@ -74,7 +74,7 @@ class InterventionPlannerAgent:
                 {"activity": "Formal assessment before sign-off"},
                 {"activity": "Certification or badge path"},
             ]
-            evidence_strs.append("Formal 10% eLearning – high-difficulty tasks")
+            evidence_strs.append("Formal 10% eLearning - high-difficulty tasks")
 
         if not otj_70:
             otj_70 = [{"activity": "Standard on-the-job practice"}]
