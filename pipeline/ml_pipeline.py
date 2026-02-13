@@ -12,14 +12,26 @@ if str(_root) not in sys.path:
 import json
 import warnings
 from datetime import datetime
+from typing import Dict, Any
 
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.cluster import KMeans
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import roc_auc_score
+from sklearn.model_selection import train_test_split, cross_val_score, StratifiedKFold
+from sklearn.metrics import (
+    roc_auc_score,
+    accuracy_score,
+    precision_score,
+    recall_score,
+    f1_score,
+    confusion_matrix,
+)
+from sklearn.metrics import silhouette_score
+from sklearn.base import clone
+import xgboost as xgb
 
 warnings.filterwarnings("ignore")
 np.random.seed(42)
@@ -189,14 +201,129 @@ def run_ml_pipeline(n_analysts: int = 60) -> dict:
         X_scaled, y_incident, test_size=0.2, random_state=42, stratify=y_incident
     )
 
-    # Models
-    model_transfer = LogisticRegression(max_iter=1000, class_weight="balanced", C=0.5)
-    model_transfer.fit(X_train, y_train_transfer)
-    model_incident = LogisticRegression(max_iter=1000, class_weight="balanced", C=0.5)
-    model_incident.fit(X_train, y_train_incident)
+    # ============================================================
+    # THEORY-CONSTRAINED VS BLACK-BOX MODEL COMPARISON
+    # ============================================================
+    # Research Question: Do theory-constrained (interpretable) models outperform
+    # black-box alternatives in small-data regimes (n<200) for SME decision intelligence?
 
-    df["TransferSuccess_Prob"] = model_transfer.predict_proba(X_scaled)[:, 1]
-    df["IncidentRisk_Prob"] = model_incident.predict_proba(X_scaled)[:, 1]
+    models_config = {
+        "LogisticRegression_Theory": {
+            "model": LogisticRegression(max_iter=1000, class_weight="balanced", C=0.5),
+            "is_theory_based": True,
+            "description": "LTSI-theory guided, ante-hoc explainable",
+        },
+        "RandomForest_BlackBox": {
+            "model": RandomForestClassifier(n_estimators=100, class_weight="balanced", random_state=42, max_depth=5),
+            "is_theory_based": False,
+            "description": "Ensemble method, post-hoc explanation required",
+        },
+        "XGBoost_BlackBox": {
+            "model": xgb.XGBClassifier(
+                scale_pos_weight=10, max_depth=3, random_state=42, eval_metric="logloss", n_estimators=100
+            ),
+            "is_theory_based": False,
+            "description": "Gradient boosting, post-hoc explanation required",
+        },
+    }
+
+    model_comparison_results: Dict[str, Any] = {}
+    cv_folds = 5
+    cv_splitter = StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=42)
+
+    # Train and evaluate all models for Transfer Success
+    for model_name, config in models_config.items():
+        model = clone(config["model"])
+        cv_scores_transfer = cross_val_score(
+            model, X_scaled, y_transfer, cv=cv_splitter, scoring="roc_auc"
+        )
+        model.fit(X_train, y_train_transfer)
+        y_pred_transfer = model.predict(X_test)
+        y_prob_transfer = model.predict_proba(X_test)[:, 1]
+        model_comparison_results[model_name] = {
+            "transfer": {
+                "auc": float(roc_auc_score(y_test_transfer, y_prob_transfer)),
+                "accuracy": float(accuracy_score(y_test_transfer, y_pred_transfer)),
+                "precision": float(precision_score(y_test_transfer, y_pred_transfer, zero_division=0)),
+                "recall": float(recall_score(y_test_transfer, y_pred_transfer, zero_division=0)),
+                "f1": float(f1_score(y_test_transfer, y_pred_transfer, zero_division=0)),
+                "cv_auc_mean": float(cv_scores_transfer.mean()),
+                "cv_auc_std": float(cv_scores_transfer.std()),
+                "cv_scores": cv_scores_transfer.tolist(),
+            },
+            "is_theory_based": config["is_theory_based"],
+            "description": config["description"],
+        }
+
+    # Repeat for Incident Risk (fresh clone per model)
+    for model_name, config in models_config.items():
+        model = clone(config["model"])
+        cv_scores_incident = cross_val_score(
+            model, X_scaled, y_incident, cv=cv_splitter, scoring="roc_auc"
+        )
+        model.fit(X_train, y_train_incident)
+        y_pred_incident = model.predict(X_test)
+        y_prob_incident = model.predict_proba(X_test)[:, 1]
+        model_comparison_results[model_name]["incident"] = {
+            "auc": float(roc_auc_score(y_test_incident, y_prob_incident)),
+            "accuracy": float(accuracy_score(y_test_incident, y_pred_incident)),
+            "precision": float(precision_score(y_test_incident, y_pred_incident, zero_division=0)),
+            "recall": float(recall_score(y_test_incident, y_pred_incident, zero_division=0)),
+            "f1": float(f1_score(y_test_incident, y_pred_incident, zero_division=0)),
+            "cv_auc_mean": float(cv_scores_incident.mean()),
+            "cv_auc_std": float(cv_scores_incident.std()),
+            "cv_scores": cv_scores_incident.tolist(),
+        }
+
+    # Select theory-based model for final use (governance requirement)
+    final_model_transfer = LogisticRegression(max_iter=1000, class_weight="balanced", C=0.5)
+    final_model_transfer.fit(X_train, y_train_transfer)
+    final_model_incident = LogisticRegression(max_iter=1000, class_weight="balanced", C=0.5)
+    final_model_incident.fit(X_train, y_train_incident)
+
+    df["TransferSuccess_Prob"] = final_model_transfer.predict_proba(X_scaled)[:, 1]
+    df["IncidentRisk_Prob"] = final_model_incident.predict_proba(X_scaled)[:, 1]
+
+    y_pred_transfer_final = final_model_transfer.predict(X_test)
+    y_pred_incident_final = final_model_incident.predict(X_test)
+    metrics_transfer = {
+        "auc": float(roc_auc_score(y_test_transfer, final_model_transfer.predict_proba(X_test)[:, 1])),
+        "accuracy": float(accuracy_score(y_test_transfer, y_pred_transfer_final)),
+        "precision": float(precision_score(y_test_transfer, y_pred_transfer_final, zero_division=0)),
+        "recall": float(recall_score(y_test_transfer, y_pred_transfer_final, zero_division=0)),
+        "f1": float(f1_score(y_test_transfer, y_pred_transfer_final, zero_division=0)),
+        "confusion_matrix": confusion_matrix(y_test_transfer, y_pred_transfer_final).tolist(),
+    }
+    metrics_incident = {
+        "auc": float(roc_auc_score(y_test_incident, final_model_incident.predict_proba(X_test)[:, 1])),
+        "accuracy": float(accuracy_score(y_test_incident, y_pred_incident_final)),
+        "precision": float(precision_score(y_test_incident, y_pred_incident_final, zero_division=0)),
+        "recall": float(recall_score(y_test_incident, y_pred_incident_final, zero_division=0)),
+        "f1": float(f1_score(y_test_incident, y_pred_incident_final, zero_division=0)),
+        "confusion_matrix": confusion_matrix(y_test_incident, y_pred_incident_final).tolist(),
+    }
+
+    # Ante-hoc explainability: coefficients
+    feature_names = X.columns.tolist()
+    transfer_coefficients = dict(zip(feature_names, final_model_transfer.coef_[0]))
+    incident_coefficients = dict(zip(feature_names, final_model_incident.coef_[0]))
+
+    # Theory alignment validation (LTSI constructs should behave predictably)
+    theory_validation = {
+        "transfer": {
+            "MotivationToTransfer_positive": transfer_coefficients.get("MotivationToTransfer", 0) > 0,
+            "PerformanceSelfEfficacy_positive": transfer_coefficients.get("PerformanceSelfEfficacy", 0) > 0,
+            "SupervisorSupport_positive": transfer_coefficients.get("SupervisorSupport", 0) > 0,
+            "SkillGap_negative": transfer_coefficients.get("SkillGap", 0) < 0,
+            "TaskDifficulty_negative": transfer_coefficients.get("TaskDifficulty", 0) < 0,
+        },
+        "incident": {
+            "TaskDifficulty_positive": incident_coefficients.get("TaskDifficulty", 0) > 0,
+            "SkillGap_positive": incident_coefficients.get("SkillGap", 0) > 0,
+            "PerformanceSelfEfficacy_negative": incident_coefficients.get("PerformanceSelfEfficacy", 0) < 0,
+            "CuesAvailable_negative": incident_coefficients.get("CuesAvailable", 0) < 0,
+        },
+    }
 
     # Clustering / personas
     analyst_features = df.groupby("AnalystID").agg({
@@ -226,6 +353,15 @@ def run_ml_pipeline(n_analysts: int = 60) -> dict:
         cluster_labels[cluster] = label
     analyst_features["PersonaLabel"] = analyst_features["PersonaCluster"].map(cluster_labels)
     df = df.merge(analyst_features[["AnalystID", "PersonaCluster", "PersonaLabel"]], on="AnalystID")
+
+    # Clustering metrics (analyst-level scaled features)
+    X_analyst = analyst_features.drop(["AnalystID", "PersonaCluster", "PersonaLabel"], axis=1)
+    X_analyst_scaled = scaler.fit_transform(X_analyst)
+    cluster_metrics = {
+        "silhouette_score": float(silhouette_score(X_analyst_scaled, analyst_features["PersonaCluster"])),
+        "inertia": float(kmeans.inertia_),
+        "n_clusters": 3,
+    }
 
     # Intervention plan generator (uses shared builder so UI can build plan for any selected row)
     high_risk_cases = df[df["IncidentRisk_Prob"] > 0.6][["AnalystID", "AoPID"]].drop_duplicates().head(10)
@@ -261,27 +397,34 @@ def run_ml_pipeline(n_analysts: int = 60) -> dict:
                 })
     intervention_df_full = pd.DataFrame(intervention_nodes)
 
-    auc_transfer = float(roc_auc_score(y_test_transfer, model_transfer.predict_proba(X_test)[:, 1]))
-    auc_incident = float(roc_auc_score(y_test_incident, model_incident.predict_proba(X_test)[:, 1]))
-
     return {
         "df": df,
         "analyst_features": analyst_features,
         "intervention_plans": intervention_plans,
         "intervention_df": intervention_df,
         "intervention_df_full": intervention_df_full,
-        "model_transfer": model_transfer,
-        "model_incident": model_incident,
+        "model_transfer": final_model_transfer,
+        "model_incident": final_model_incident,
         "X": X,
         "X_test": X_test,
         "y_test_transfer": y_test_transfer,
         "y_test_incident": y_test_incident,
-        "auc_transfer": auc_transfer,
-        "auc_incident": auc_incident,
+        "auc_transfer": metrics_transfer["auc"],
+        "auc_incident": metrics_incident["auc"],
+        "metrics_transfer": metrics_transfer,
+        "metrics_incident": metrics_incident,
+        "cluster_metrics": cluster_metrics,
         "n_analysts": n_analysts,
         "n_aops": len(aops),
         "aops": aops,
         "persona_counts": analyst_features["PersonaLabel"].value_counts(),
         "transfer_rate": float(df["TransferSuccess"].mean()),
         "incident_rate": float(df["IncidentRisk"].mean()),
+        "model_comparison": model_comparison_results,
+        "theory_model_selected": True,
+        "theory_validation": theory_validation,
+        "transfer_coefficients": transfer_coefficients,
+        "incident_coefficients": incident_coefficients,
+        "cv_folds": cv_folds,
+        "features_used": feature_names,
     }

@@ -160,6 +160,24 @@ Edit `config/config.yaml` for:
 - **pandas** - data manipulation  
 - **pyyaml** - config  
 - **scikit-learn** - models and clustering  
+- **xgboost** - model comparison (black-box baseline)
+
+## Academic Foundation
+
+**Primary Research:**
+- Mughal, Z. (2023). *Optimizing workplace training transfer: A case study on designing the 70:20:10 training strategy through SME and L&D collaboration* (Doctoral dissertation, University of Wisconsin-Stout). https://minds.wisconsin.edu/handle/1793/84881
+
+**Theoretical Constructs:**
+- Holton, E. F., III, Bates, R. A., & Ruona, W. E. A. (2000). Development of a generalized learning transfer system inventory. *Human Resource Development Quarterly*, 11(4), 333-360.
+- Lombardo, M. M., & Eichinger, R. W. (1996). *The Career Architect Development Planner*. Lominger Limited.
+
+**Methodology:**
+- Hevner, A. R., et al. (2004). Design science in information systems research. *MIS Quarterly*, 28(1), 75-105.
+- Peffers, K., et al. (2007). A design science research methodology for information systems research. *Journal of Management Information Systems*, 24(3), 45-77.
+
+**Small Data & Governance:**
+- Hardt, M., & Recht, B. (2021). *Patterns, predictions, and actions: Foundations of machine learning*. MIT Press.
+- Centre for International Governance Innovation (CIGI). (2023). Ante-hoc explainability for AI governance.
 
 ## License
 
