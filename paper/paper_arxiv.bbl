@@ -1,0 +1,113 @@
+\begin{thebibliography}{}
+
+\bibitem[Abu-Mostafa, 2012]{abumostafa2012}
+Abu-Mostafa, Y.~S. (2012).
+\newblock Learning with hints.
+\newblock {\em Journal of Complexity}, 28(1):1--8.
+
+\bibitem[Aizenberh, 2024]{aizenberh2024}
+Aizenberh, O. (2024).
+\newblock {AI} adoption and digital competitiveness in {SMEs}: Proactive
+  internationalization strategies.
+\newblock {\em Journal of Strategic Marketing Analytics}, 12(4):112--128.
+
+\bibitem[Baldwin and Ford, 1988]{baldwin1988}
+Baldwin, T.~T. and Ford, J.~K. (1988).
+\newblock Transfer of training: A review and directions for future research.
+\newblock {\em Personnel Psychology}, 41(1):63--105.
+
+\bibitem[{Centre for International Governance Innovation}, 2023]{cigi2023}
+{Centre for International Governance Innovation} (2023).
+\newblock Ante-hoc explainability for {AI} governance.
+\newblock Technical report, Centre for International Governance Innovation,
+  Waterloo, ON.
+
+\bibitem[Chiaburu et~al., 2010]{chiaburu2010}
+Chiaburu, D.~S., van Dam, K., and Hutchins, H.~M. (2010).
+\newblock Social support in the workplace and training transfer: A longitudinal
+  analysis.
+\newblock {\em International Journal of Selection and Assessment},
+  18(2):187--200.
+
+\bibitem[{Deloitte Insights}, 2026]{deloitte2026}
+{Deloitte Insights} (2026).
+\newblock The state of {AI} in the enterprise: 2026 report.
+\newblock Technical report, Deloitte.
+
+\bibitem[Hardt and Recht, 2021]{hardt2021}
+Hardt, M. and Recht, B. (2021).
+\newblock {\em Patterns, predictions, and actions: Foundations of machine
+  learning}.
+\newblock MIT Press, Cambridge, MA.
+
+\bibitem[Hevner et~al., 2004]{hevner2004}
+Hevner, A.~R., March, S.~T., Park, J., and Ram, S. (2004).
+\newblock Design science in information systems research.
+\newblock {\em MIS Quarterly}, 28(1):75--105.
+
+\bibitem[Holton et~al., 2000]{holton2000}
+Holton, Elwood~F., I., Bates, R.~A., and Ruona, W. E.~A. (2000).
+\newblock Development of a generalized learning transfer system inventory.
+\newblock {\em Human Resource Development Quarterly}, 11(4):333--360.
+
+\bibitem[Karpatne et~al., 2017]{karpatne2017}
+Karpatne, A., Atluri, G., Faghmous, J.~H., Steinbach, M., Banerjee, A.,
+  Ganguly, A., Shekhar, S., Samatova, N., and Kumar, V. (2017).
+\newblock Theory-guided data science: A new paradigm for scientific discovery
+  from data.
+\newblock {\em IEEE Transactions on Knowledge and Data Engineering},
+  29(10):2318--2331.
+
+\bibitem[Lombardo and Eichinger, 1996]{lombardo1996}
+Lombardo, M.~M. and Eichinger, R.~W. (1996).
+\newblock {\em The career architect development planner}.
+\newblock Lominger Limited, Minneapolis, MN.
+
+\bibitem[Mitchell, 1980]{mitchell1980}
+Mitchell, T.~M. (1980).
+\newblock The need for biases in learning generalizations.
+\newblock Technical Report CBM-TR-117, Rutgers University.
+
+\bibitem[Mughal, 2023]{mughal2023}
+Mughal, Z. (2023).
+\newblock {\em Optimizing workplace training transfer: A case study on
+  designing the 70:20:10 training strategy through {SME} and {L\&D}
+  collaboration}.
+\newblock PhD thesis, University of Wisconsin-Stout.
+
+\bibitem[{OECD}, 2021]{oecd2021}
+{OECD} (2021).
+\newblock The digital transformation of {SMEs}.
+\newblock Technical report, OECD Publishing.
+
+\bibitem[Peffers et~al., 2007]{peffers2007}
+Peffers, K., Tuunanen, T., Rothenberger, M.~A., and Chatterjee, S. (2007).
+\newblock A design science research methodology for information systems
+  research.
+\newblock {\em Journal of Management Information Systems}, 24(3):45--77.
+
+\bibitem[Raissi et~al., 2019]{raissi2019}
+Raissi, M., Perdikaris, P., and Karniadakis, G.~E. (2019).
+\newblock Physics-informed neural networks: A deep learning framework for
+  solving forward and inverse problems involving nonlinear partial differential
+  equations.
+\newblock {\em Journal of Computational Physics}, 378:686--707.
+
+\bibitem[Rudin, 2019]{rudin2019}
+Rudin, C. (2019).
+\newblock Stop explaining black box machine learning models for high stakes
+  decisions and use interpretable models instead.
+\newblock {\em Nature Machine Intelligence}, 1(5):206--215.
+
+\bibitem[Vapnik, 1998]{vapnik1998}
+Vapnik, V.~N. (1998).
+\newblock {\em Statistical learning theory}.
+\newblock Wiley, New York, NY.
+
+\bibitem[Wu and Zheng, 2025]{wu2025}
+Wu, X. and Zheng, Y. (2025).
+\newblock Human-centric {AI} in organizational decision-making: A framework for
+  {SME} sustainability.
+\newblock {\em Information Systems Journal}, 35(1):45--67.
+
+\end{thebibliography}
