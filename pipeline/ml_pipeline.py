@@ -323,10 +323,8 @@ def run_ml_pipeline(n_analysts: int = 60) -> dict:
     THEORY_FEATURES_TRANSFER = [
         "MotivationToTransfer",
         "SupervisorSupport",
-        "PerformanceSelfEfficacy",
         "PositivePersonalOutcomes",
-        "SkillGap",
-        "SupervisorSanctions"
+        "SkillGap"
     ]
     THEORY_FEATURES_INCIDENT = [
         "CriticalIncidentFlag",
@@ -379,15 +377,14 @@ def run_ml_pipeline(n_analysts: int = 60) -> dict:
     theory_validation = {
         "transfer": {
             "MotivationToTransfer_positive": transfer_coefficients.get("MotivationToTransfer", 0) > 0,
-            "PerformanceSelfEfficacy_positive": transfer_coefficients.get("PerformanceSelfEfficacy", 0) > 0,
             "SupervisorSupport_positive": transfer_coefficients.get("SupervisorSupport", 0) > 0,
+            "PositivePersonalOutcomes_positive": transfer_coefficients.get("PositivePersonalOutcomes", 0) > 0,
             "SkillGap_negative": transfer_coefficients.get("SkillGap", 0) < 0,
-            "TaskDifficulty_negative": transfer_coefficients.get("TaskDifficulty", 0) < 0,
         },
         "incident": {
-            "TaskDifficulty_positive": incident_coefficients.get("TaskDifficulty", 0) > 0,
-            "SkillGap_positive": incident_coefficients.get("SkillGap", 0) > 0,
-            "PerformanceSelfEfficacy_negative": incident_coefficients.get("PerformanceSelfEfficacy", 0) < 0,
+            "CriticalIncidentFlag_positive": incident_coefficients.get("CriticalIncidentFlag", 0) > 0,
+            "High_Difficulty_Low_Cues_positive": incident_coefficients.get("High_Difficulty_Low_Cues", 0) > 0,
+            "SkillGap_negative": incident_coefficients.get("SkillGap", 0) < 0,
             "CuesAvailable_negative": incident_coefficients.get("CuesAvailable", 0) < 0,
         },
     }

@@ -666,6 +666,12 @@ This is the **ML pipeline** screen. It runs an end-to-end pipeline on **syntheti
         st.success("Pipeline complete.")
         st.rerun()
 
+    if "ml_pipeline_output" in st.session_state and st.button("Clear Cache and Rerun", key="clear_cache_rerun"):
+        del st.session_state["ml_pipeline_output"]
+        if "pipeline_results" in st.session_state:
+            del st.session_state["pipeline_results"]
+        st.rerun()
+
     if "ml_pipeline_output" not in st.session_state:
         st.info("Click **Run ML Pipeline** to generate synthetic data, train models, cluster personas, and build 70:20:10 intervention plans.")
         return
@@ -680,8 +686,8 @@ This is the **ML pipeline** screen. It runs an end-to-end pipeline on **syntheti
     X = out["X"]
     n_records = len(df)
     persona_counts = out["persona_counts"]
-    coef_transfer = pd.DataFrame({"Feature": X.columns, "Coef": model_transfer.coef_[0]}).assign(AbsCoef=lambda x: x["Coef"].abs())
-    coef_incident = pd.DataFrame({"Feature": X.columns, "Coef": model_incident.coef_[0]}).assign(AbsCoef=lambda x: x["Coef"].abs())
+    coef_transfer = pd.DataFrame([{"Feature": k, "Coef": v} for k, v in out["transfer_coefficients"].items()]).assign(AbsCoef=lambda x: x["Coef"].abs())
+    coef_incident = pd.DataFrame([{"Feature": k, "Coef": v} for k, v in out["incident_coefficients"].items()]).assign(AbsCoef=lambda x: x["Coef"].abs())
     coef_transfer_top = coef_transfer.nlargest(5, "AbsCoef")
     coef_incident_top = coef_incident.nlargest(5, "AbsCoef")
 
@@ -787,8 +793,8 @@ This is the **ML pipeline** screen. It runs an end-to-end pipeline on **syntheti
         fig_risk.update_layout(xaxis_tickangle=-45, height=340, margin=dict(t=40, b=40, l=40, r=20))
         st.plotly_chart(fig_risk, use_container_width=True)
     with row1_col2:
-        coef_t_8 = coef_transfer.nlargest(8, "AbsCoef")
-        fig_t = go.Figure(go.Bar(x=coef_t_8["Coef"], y=coef_t_8["Feature"], orientation="h", marker_color=["#2E86AB" if c > 0 else "#A23B72" for c in coef_t_8["Coef"]]))
+        coef_t = coef_transfer.sort_values("AbsCoef", ascending=False)
+        fig_t = go.Figure(go.Bar(x=coef_t["Coef"], y=coef_t["Feature"], orientation="h", marker_color=["#2E86AB" if c > 0 else "#A23B72" for c in coef_t["Coef"]]))
         fig_t.update_layout(title="Top Drivers: Training Transfer Success", height=340, margin=dict(t=40, b=40, l=140, r=20), xaxis_title="Coef")
         st.plotly_chart(fig_t, use_container_width=True)
 
@@ -807,8 +813,8 @@ This is the **ML pipeline** screen. It runs an end-to-end pipeline on **syntheti
 
     # Incident Risk drivers (below 2x2)
     st.markdown("### Incident Risk - Top drivers")
-    coef_incident_8 = coef_incident.nlargest(8, "AbsCoef")
-    fig_i = go.Figure(go.Bar(x=coef_incident_8["Coef"], y=coef_incident_8["Feature"], orientation="h", marker_color=["#2E86AB" if c > 0 else "#A23B72" for c in coef_incident_8["Coef"]]))
+    coef_incident_sorted = coef_incident.sort_values("AbsCoef", ascending=False)
+    fig_i = go.Figure(go.Bar(x=coef_incident_sorted["Coef"], y=coef_incident_sorted["Feature"], orientation="h", marker_color=["#2E86AB" if c > 0 else "#A23B72" for c in coef_incident_sorted["Coef"]]))
     fig_i.update_layout(height=300, margin=dict(l=140), xaxis_title="Coefficient")
     st.plotly_chart(fig_i, use_container_width=True)
 
