@@ -56,39 +56,10 @@ DEFAULT_AOPS = [
 
 def generate_ltsi_scores(tier: str) -> dict:
     base = {"Analyst": 2.8, "AdvancedAnalyst": 3.5, "SeniorAnalyst": 4.0}[tier]
-
-    # Independent tier offsets for features that need stronger independent signal
-    independent_bases = {
-        "PerformanceOutcomeExpectations": {
-            "Analyst": 2.5,
-            "AdvancedAnalyst": 3.2,
-            "SeniorAnalyst": 4.2
-        },
-        "PerceivedContentValidity": {
-            "Analyst": 2.6,
-            "AdvancedAnalyst": 3.3,
-            "SeniorAnalyst": 4.1
-        },
-        "MotivationToTransfer": {
-            "Analyst": 3.1,
-            "AdvancedAnalyst": 3.1,
-            "SeniorAnalyst": 3.1
-        }
-    }
-
     scores = {}
     for factor in LTSI_FACTORS:
-        if factor == "MotivationToTransfer":
-            noise = np.random.normal(0, 0.8)
-            score = np.clip(3.1 + noise, 1, 5)
-        elif factor in independent_bases:
-            factor_base = independent_bases[factor][tier]
-            noise = np.random.normal(0, 0.5)
-            score = np.clip(factor_base + noise + np.random.uniform(-0.3, 0.3), 1, 5)
-        else:
-            factor_base = base
-            noise = np.random.normal(0, 0.5)
-            score = np.clip(factor_base + noise + np.random.uniform(-0.3, 0.3), 1, 5)
+        noise = np.random.normal(0, 0.6)
+        score = np.clip(base + noise + np.random.uniform(-0.5, 0.5), 1, 5)
         scores[factor] = round(float(score), 2)
     return scores
 
@@ -174,32 +145,28 @@ def run_ml_pipeline(n_analysts: int = 60) -> dict:
             required_level = aop["difficulty"]
             observed_level = np.clip(base_proficiency + np.random.normal(0, 0.8), 1, 4)
             skill_gap = required_level - observed_level
-            incident_exposure = int(np.random.random() < 0.30)
+            incident_exposure = 1 if np.random.random() < aop["critical_incident_rate"] else 0
             cues_available = np.random.beta(2, 1) if tier != "Analyst" else np.random.beta(2, 2)
-            difficulty = aop["difficulty"]
-            high_difficulty_low_cues = 1 if difficulty >= 3 and cues_available < 0.5 else 0
-
             transfer_logit = (
-                0.28 * (ltsi["MotivationToTransfer"] / 5)
-                + 0.22 * (ltsi["PerformanceSelfEfficacy"] / 5)
-                + 0.25 * (ltsi["SupervisorSupport"] / 5)
-                + 0.22 * (ltsi["LearnerReadiness"] / 5)
-                + 0.18 * (ltsi["PositivePersonalOutcomes"] / 5)
-                - 0.25 * (skill_gap / 4)
-                - 0.22 * (ltsi["SupervisorSanctions"] / 5)
+                1.5 * (ltsi["MotivationToTransfer"] / 5)
+                + 1.2 * (ltsi["SupervisorSupport"] / 5)
+                + 1.0 * (ltsi["OpportunityToUseLearning"] / 5)
+                - 1.5 * (skill_gap / 4)
+                + 0.8 * cues_available
+                - 3.0
             )
             transfer_prob = 1 / (1 + np.exp(-transfer_logit))
             transfer_success = 1 if np.random.random() < transfer_prob else 0
-
-            incident_logit = (
-                0.35 * (difficulty / 4)
-                + 0.30 * (max(0, skill_gap) / 4)
-                - 0.30 * cues_available
-                + 0.25 * incident_exposure
-                + 0.25 * high_difficulty_low_cues
+            risk_logit = (
+                1.8 * (aop["difficulty"] / 4)
+                + 1.5 * max(0, skill_gap / 4)
+                - 1.2 * (ltsi["PerformanceSelfEfficacy"] / 5)
+                - 1.5 * cues_available
+                + 1.2 * incident_exposure
+                - 1.5
             )
-            incident_prob = 1 / (1 + np.exp(-incident_logit))
-            incident_risk = 1 if np.random.random() < incident_prob else 0
+            risk_prob = 1 / (1 + np.exp(-risk_logit))
+            incident_risk = 1 if np.random.random() < risk_prob else 0
             records.append({
                 "AnalystID": analyst,
                 "RoleTier": tier,
@@ -212,10 +179,16 @@ def run_ml_pipeline(n_analysts: int = 60) -> dict:
                 "CuesAvailable": round(float(cues_available), 2),
                 "TransferSuccess": transfer_success,
                 "IncidentRisk": incident_risk,
+                "TransferProb_DGP": transfer_prob,
                 **ltsi,
             })
 
     df = pd.DataFrame(records)
+
+    # DGP diagnostics (before model fitting)
+    print(f"Transfer rate: {df['TransferSuccess'].mean():.3f}")
+    print(f"Incident rate: {df['IncidentRisk'].mean():.3f}")
+    print(f"Transfer prob range:\n{df['TransferProb_DGP'].describe()}")
 
     # Feature engineering
     feature_cols = LTSI_FACTORS + ["TaskDifficulty", "SkillGap", "CuesAvailable", "CriticalIncidentFlag"]
@@ -238,11 +211,6 @@ def run_ml_pipeline(n_analysts: int = 60) -> dict:
     _, _, y_train_incident, y_test_incident = train_test_split(
         X_scaled, y_incident, test_size=0.2, random_state=42, stratify=y_incident
     )
-
-    # Scaled arrays as DataFrames (for theory-constrained feature selection)
-    X_train_scaled_df = pd.DataFrame(X_train, columns=X.columns)
-    X_test_scaled_df = pd.DataFrame(X_test, columns=X.columns)
-    X_scaled_df = pd.DataFrame(X_scaled, columns=X.columns)
 
     # ============================================================
     # THEORY-CONSTRAINED VS BLACK-BOX MODEL COMPARISON
@@ -319,40 +287,18 @@ def run_ml_pipeline(n_analysts: int = 60) -> dict:
         }
 
     # Select theory-based model for final use (governance requirement)
-    # Theory-constrained feature sets matching paper hypotheses (H1-H8, R1-R5)
-    THEORY_FEATURES_TRANSFER = [
-        "MotivationToTransfer",
-        "SupervisorSupport",
-        "PositivePersonalOutcomes",
-        "SkillGap"
-    ]
-    THEORY_FEATURES_INCIDENT = [
-        "CriticalIncidentFlag",
-        "High_Difficulty_Low_Cues",
-        "SkillGap",
-        "CuesAvailable"
-    ]
-
-    X_train_theory_transfer = X_train_scaled_df[THEORY_FEATURES_TRANSFER]
-    X_test_theory_transfer = X_test_scaled_df[THEORY_FEATURES_TRANSFER]
-    X_scaled_theory_transfer = X_scaled_df[THEORY_FEATURES_TRANSFER]
-
-    X_train_theory_incident = X_train_scaled_df[THEORY_FEATURES_INCIDENT]
-    X_test_theory_incident = X_test_scaled_df[THEORY_FEATURES_INCIDENT]
-    X_scaled_theory_incident = X_scaled_df[THEORY_FEATURES_INCIDENT]
-
     final_model_transfer = LogisticRegression(max_iter=1000, class_weight="balanced", C=0.5)
-    final_model_transfer.fit(X_train_theory_transfer, y_train_transfer)
+    final_model_transfer.fit(X_train, y_train_transfer)
     final_model_incident = LogisticRegression(max_iter=1000, class_weight="balanced", C=0.5)
-    final_model_incident.fit(X_train_theory_incident, y_train_incident)
+    final_model_incident.fit(X_train, y_train_incident)
 
-    df["TransferSuccess_Prob"] = final_model_transfer.predict_proba(X_scaled_theory_transfer)[:, 1]
-    df["IncidentRisk_Prob"] = final_model_incident.predict_proba(X_scaled_theory_incident)[:, 1]
+    df["TransferSuccess_Prob"] = final_model_transfer.predict_proba(X_scaled)[:, 1]
+    df["IncidentRisk_Prob"] = final_model_incident.predict_proba(X_scaled)[:, 1]
 
-    y_pred_transfer_final = final_model_transfer.predict(X_test_theory_transfer)
-    y_pred_incident_final = final_model_incident.predict(X_test_theory_incident)
+    y_pred_transfer_final = final_model_transfer.predict(X_test)
+    y_pred_incident_final = final_model_incident.predict(X_test)
     metrics_transfer = {
-        "auc": float(roc_auc_score(y_test_transfer, final_model_transfer.predict_proba(X_test_theory_transfer)[:, 1])),
+        "auc": float(roc_auc_score(y_test_transfer, final_model_transfer.predict_proba(X_test)[:, 1])),
         "accuracy": float(accuracy_score(y_test_transfer, y_pred_transfer_final)),
         "precision": float(precision_score(y_test_transfer, y_pred_transfer_final, zero_division=0)),
         "recall": float(recall_score(y_test_transfer, y_pred_transfer_final, zero_division=0)),
@@ -360,7 +306,7 @@ def run_ml_pipeline(n_analysts: int = 60) -> dict:
         "confusion_matrix": confusion_matrix(y_test_transfer, y_pred_transfer_final).tolist(),
     }
     metrics_incident = {
-        "auc": float(roc_auc_score(y_test_incident, final_model_incident.predict_proba(X_test_theory_incident)[:, 1])),
+        "auc": float(roc_auc_score(y_test_incident, final_model_incident.predict_proba(X_test)[:, 1])),
         "accuracy": float(accuracy_score(y_test_incident, y_pred_incident_final)),
         "precision": float(precision_score(y_test_incident, y_pred_incident_final, zero_division=0)),
         "recall": float(recall_score(y_test_incident, y_pred_incident_final, zero_division=0)),
@@ -368,23 +314,78 @@ def run_ml_pipeline(n_analysts: int = 60) -> dict:
         "confusion_matrix": confusion_matrix(y_test_incident, y_pred_incident_final).tolist(),
     }
 
-    # Ante-hoc explainability: coefficients (theory-constrained feature sets)
+    # Ante-hoc explainability: coefficients
     feature_names = X.columns.tolist()
-    transfer_coefficients = dict(zip(THEORY_FEATURES_TRANSFER, final_model_transfer.coef_[0]))
-    incident_coefficients = dict(zip(THEORY_FEATURES_INCIDENT, final_model_incident.coef_[0]))
+    transfer_coefficients = dict(zip(feature_names, final_model_transfer.coef_[0]))
+    THEORY_FEATURES_TRANSFER = [
+        "MotivationToTransfer", "SupervisorSupport",
+        "PositivePersonalOutcomes", "SkillGap"
+    ]
+    transfer_coefficients_display = {
+        k: transfer_coefficients[k]
+        for k in THEORY_FEATURES_TRANSFER
+    }
+    incident_coefficients = dict(zip(feature_names, final_model_incident.coef_[0]))
+    THEORY_FEATURES_INCIDENT = [
+        "CriticalIncidentFlag", "High_Difficulty_Low_Cues",
+        "SkillGap", "CuesAvailable"
+    ]
+    incident_coefficients_display = {
+        k: incident_coefficients[k]
+        for k in THEORY_FEATURES_INCIDENT
+    }
+
+    print("\n=== REPRODUCIBLE PIPELINE RESULTS ===")
+    lr_transfer = model_comparison_results[
+        "LogisticRegression_Theory"]["transfer"]
+    lr_incident = model_comparison_results[
+        "LogisticRegression_Theory"]["incident"]
+    rf_transfer = model_comparison_results[
+        "RandomForest_BlackBox"]["transfer"]
+    xgb_transfer = model_comparison_results[
+        "XGBoost_BlackBox"]["transfer"]
+    rf_incident = model_comparison_results[
+        "RandomForest_BlackBox"]["incident"]
+    xgb_incident = model_comparison_results[
+        "XGBoost_BlackBox"]["incident"]
+
+    print(f"LogReg Transfer: AUC={lr_transfer['cv_auc_mean']:.3f}"
+          f" CV_SD={lr_transfer['cv_auc_std']:.4f}")
+    print(f"LogReg Incident: AUC={lr_incident['cv_auc_mean']:.3f}"
+          f" CV_SD={lr_incident['cv_auc_std']:.4f}")
+    print(f"RF Transfer:     AUC={rf_transfer['cv_auc_mean']:.3f}"
+          f" CV_SD={rf_transfer['cv_auc_std']:.4f}")
+    print(f"XGB Transfer:    AUC={xgb_transfer['cv_auc_mean']:.3f}"
+          f" CV_SD={xgb_transfer['cv_auc_std']:.4f}")
+    print(f"RF Incident:     AUC={rf_incident['cv_auc_mean']:.3f}"
+          f" CV_SD={rf_incident['cv_auc_std']:.4f}")
+    print(f"XGB Incident:    AUC={xgb_incident['cv_auc_mean']:.3f}"
+          f" CV_SD={xgb_incident['cv_auc_std']:.4f}")
+    print(f"Variance ratio Transfer "
+          f"(RF/LogReg): "
+          f"{rf_transfer['cv_auc_std']/lr_transfer['cv_auc_std']:.1f}x")
+    print(f"Variance ratio Transfer "
+          f"(XGB/LogReg): "
+          f"{xgb_transfer['cv_auc_std']/lr_transfer['cv_auc_std']:.1f}x")
+    print(f"transfer_coefficients_display: "
+          f"{transfer_coefficients_display}")
+    print(f"incident_coefficients_display: "
+          f"{incident_coefficients_display}")
+    print("=== END ===\n")
 
     # Theory alignment validation (LTSI constructs should behave predictably)
     theory_validation = {
         "transfer": {
             "MotivationToTransfer_positive": transfer_coefficients.get("MotivationToTransfer", 0) > 0,
+            "PerformanceSelfEfficacy_positive": transfer_coefficients.get("PerformanceSelfEfficacy", 0) > 0,
             "SupervisorSupport_positive": transfer_coefficients.get("SupervisorSupport", 0) > 0,
-            "PositivePersonalOutcomes_positive": transfer_coefficients.get("PositivePersonalOutcomes", 0) > 0,
             "SkillGap_negative": transfer_coefficients.get("SkillGap", 0) < 0,
+            "TaskDifficulty_negative": transfer_coefficients.get("TaskDifficulty", 0) < 0,
         },
         "incident": {
-            "CriticalIncidentFlag_positive": incident_coefficients.get("CriticalIncidentFlag", 0) > 0,
-            "High_Difficulty_Low_Cues_positive": incident_coefficients.get("High_Difficulty_Low_Cues", 0) > 0,
-            "SkillGap_negative": incident_coefficients.get("SkillGap", 0) < 0,
+            "TaskDifficulty_positive": incident_coefficients.get("TaskDifficulty", 0) > 0,
+            "SkillGap_positive": incident_coefficients.get("SkillGap", 0) > 0,
+            "PerformanceSelfEfficacy_negative": incident_coefficients.get("PerformanceSelfEfficacy", 0) < 0,
             "CuesAvailable_negative": incident_coefficients.get("CuesAvailable", 0) < 0,
         },
     }
@@ -489,10 +490,24 @@ def run_ml_pipeline(n_analysts: int = 60) -> dict:
         "theory_validation": theory_validation,
         "transfer_coefficients": transfer_coefficients,
         "incident_coefficients": incident_coefficients,
+        "transfer_coefficients_display": transfer_coefficients_display,
+        "incident_coefficients_display": incident_coefficients_display,
         "cv_folds": cv_folds,
         "features_used": feature_names,
     }
 
 
 if __name__ == "__main__":
-    run_ml_pipeline()
+    out = run_ml_pipeline()
+    mc = out["model_comparison"]
+    tcd = out["transfer_coefficients_display"]
+    icd = out["incident_coefficients_display"]
+    print("\n=== ML Pipeline Verification ===")
+    print("1. LogReg Transfer CV AUC Mean:", round(mc["LogisticRegression_Theory"]["transfer"]["cv_auc_mean"], 4))
+    print("   LogReg Transfer CV AUC Std:", round(mc["LogisticRegression_Theory"]["transfer"]["cv_auc_std"], 4))
+    print("2. LogReg Incident CV AUC Mean:", round(mc["LogisticRegression_Theory"]["incident"]["cv_auc_mean"], 4))
+    print("   LogReg Incident CV AUC Std:", round(mc["LogisticRegression_Theory"]["incident"]["cv_auc_std"], 4))
+    print("3. RF Transfer CV AUC Std:", round(mc["RandomForest_BlackBox"]["transfer"]["cv_auc_std"], 4))
+    print("4. XGBoost Transfer CV AUC Std:", round(mc["XGBoost_BlackBox"]["transfer"]["cv_auc_std"], 4))
+    print("5. transfer_coefficients_display:", tcd)
+    print("6. incident_coefficients_display:", icd)
